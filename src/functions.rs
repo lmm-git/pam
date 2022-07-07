@@ -130,7 +130,7 @@ mod types {
     pub fn set_item(
         handle: &mut PamHandle,
         item_type: PamItemType,
-        item: &c_void,
+        item: *const c_void,
     ) -> PamResult<()> {
         match unsafe { ffi::pam_set_item(handle, item_type as c_int, item) }.into() {
             PamReturnCode::Success => Ok(()),
@@ -140,7 +140,7 @@ mod types {
 
     /// Retrieve PAM information of type `item_type` from the associated PAM transaction
     #[inline]
-    pub fn get_item<'a>(handle: &PamHandle, item_type: PamItemType) -> PamResult<&'a c_void> {
+    pub fn get_item<'a>(handle: &PamHandle, item_type: PamItemType) -> PamResult<*const c_void> {
         let mut item_ptr: *const c_void = std::ptr::null();
         match unsafe { ffi::pam_get_item(handle, item_type as c_int, &mut item_ptr) }.into() {
             PamReturnCode::Success => {
@@ -168,7 +168,8 @@ mod types {
     #[inline]
     pub fn putenv(handle: &mut PamHandle, name_value: &str) -> PamResult<()> {
         if let Ok(name_value) = CString::new(name_value) {
-            match unsafe { ffi::pam_putenv(handle, name_value.as_ptr()) }.into() {
+            match unsafe { ffi::pam_putenv( handle, name_value.as_ptr()) }
+            .into() {
                 PamReturnCode::Success => Ok(()),
                 err => Err(err.into()),
             }

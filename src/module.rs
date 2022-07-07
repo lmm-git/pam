@@ -26,7 +26,7 @@ pub trait PamModule {
     fn account_management(handle: &PamHandle, args: Vec<&CStr>, flags: c_uint) -> PamReturnCode {
         PamReturnCode::Ignore
     }
-    fn authenticate(handle: &PamHandle, args: Vec<&CStr>, flags: c_uint) -> PamReturnCode {
+    fn authenticate(handle: &mut PamHandle, args: Vec<&CStr>, flags: c_uint) -> PamReturnCode {
         PamReturnCode::Ignore
     }
     fn change_auth_token(handle: &PamHandle, args: Vec<&CStr>, flags: c_uint) -> PamReturnCode {
@@ -71,7 +71,7 @@ macro_rules! export_pam_module {
             }
             #[no_mangle]
             pub extern "C" fn pam_sm_authenticate(
-                handle: &PamHandle,
+                handle: &mut PamHandle,
                 flags: c_uint,
                 argc: c_int,
                 argv: *const *const c_char,
