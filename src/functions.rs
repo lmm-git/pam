@@ -35,7 +35,8 @@ mod appl {
             // Only service is required -> initialize handle
             let mut handle: *mut PamHandle = std::ptr::null_mut();
 
-            let user_ptr = super::try_str_option_to_ptr(user)?;
+            let user_cstring = super::try_str_option_to_cstring(user)?;
+            let user_ptr = super::try_cstring_option_to_ptr(&user_cstring);
             match unsafe { ffi::pam_start(service.as_ptr(), user_ptr, conversation, &mut handle) }
                 .into()
             {
@@ -314,7 +315,8 @@ mod modules {
         // For some reason, bindgen marks the handle as mutable in pam_sys although man says const
         let handle = handle as *const PamHandle as *mut PamHandle;
         let mut user_ptr: *const c_char = std::ptr::null();
-        let prompt_ptr = super::try_str_option_to_ptr(prompt)?;
+        let prompt_cstring = super::try_str_option_to_cstring(prompt)?;
+        let prompt_ptr = super::try_cstring_option_to_ptr(&prompt_cstring);
 
         match unsafe { ffi::pam_get_user(handle, &mut user_ptr, prompt_ptr) }.into() {
             PamReturnCode::Success => {
@@ -336,7 +338,8 @@ mod modules {
         // For some reason, bindgen marks the handle as mutable in pam_sys although man says const
         let handle = handle as *const PamHandle as *mut PamHandle;
         let mut authtok_ptr: *const c_char = std::ptr::null();
-        let prompt_ptr = super::try_str_option_to_ptr(prompt)?;
+        let prompt_cstring = super::try_str_option_to_cstring(prompt)?;
+        let prompt_ptr = super::try_cstring_option_to_ptr(&prompt_cstring);
 
         match unsafe { ffi::pam_get_authtok(handle, PamItemType::AuthTok as c_int, &mut authtok_ptr, prompt_ptr) }.into() {
             PamReturnCode::Success => {
@@ -359,13 +362,24 @@ fn buffer_error<T>() -> crate::PamResult<T> {
     Err(crate::PamReturnCode::Buf_Err.into())
 }
 
-fn try_str_option_to_ptr(opt: Option<&str>) -> crate::PamResult<*const libc::c_char> {
+fn try_str_option_to_cstring(opt: Option<&str>) -> crate::PamResult<Option<std::ffi::CString>> {
     match opt.map(std::ffi::CString::new) {
-        // Valid string given -> Return ptr of the converted CString
-        Some(Ok(content)) => Ok(content.as_ptr()),
+        // Valid string given -> Return object of the converted CString
+        // returning an object here is necessary to ensure the CString does not get dropped before
+        // the pointer is getting used, see https://docs.rs/rustc-std-workspace-std/1.0.1/std/ffi/struct.CString.html#deref-methods
+        Some(Ok(content)) => Ok(Some(content)),
         // No string given -> Return null-ptr
-        None => Ok(std::ptr::null_mut()),
+        None => Ok(None),
         // Invalid string given -> Return BUF_ERR
         _ => Err(crate::PamReturnCode::Buf_Err.into()),
+    }
+}
+
+fn try_cstring_option_to_ptr(opt: &Option<std::ffi::CString>) -> *const libc::c_char {
+    match opt {
+        // Valid string given -> Return ptr of the converted CString
+        Some(content) => content.as_ptr(),
+        // No string given -> Return null-ptr
+        None => std::ptr::null(),
     }
 }
