@@ -275,7 +275,7 @@ mod misc {
 /* ----------------------- <security/pam_modules.h> ------------------------ */
 #[cfg(feature = "module")]
 mod modules {
-    use crate::{ffi, PamHandle, PamResult, PamReturnCode};
+    use crate::{ffi, PamHandle, PamItemType, PamResult, PamReturnCode};
 
     use std::ffi::{CStr, CString};
     use libc::{c_char, c_int, c_void};
@@ -311,7 +311,7 @@ mod modules {
     /// Return the name of the user as specified via `start`
     #[inline]
     pub fn get_user<'a>(handle: &'a PamHandle, prompt: Option<&str>) -> PamResult<&'a str> {
-        // For some reason, bindgen marks the handl as mutable in pam_sys although man says const
+        // For some reason, bindgen marks the handle as mutable in pam_sys although man says const
         let handle = handle as *const PamHandle as *mut PamHandle;
         let mut user_ptr: *const c_char = std::ptr::null();
         let prompt_ptr = super::try_str_option_to_ptr(prompt)?;
@@ -325,6 +325,28 @@ mod modules {
                 Ok(unsafe { CStr::from_ptr(user_ptr) }
                     .to_str()
                     .expect("Got invalid UTF8 string from pam_get_user"))
+            }
+            err => Err(err.into()),
+        }
+    }
+
+    /// Return the authtok of a user, can be used. e.g. to get the password of a user
+    #[inline]
+    pub fn get_authtok<'a>(handle: &'a PamHandle, prompt: Option<&str>) -> PamResult<&'a str> {
+        // For some reason, bindgen marks the handle as mutable in pam_sys although man says const
+        let handle = handle as *const PamHandle as *mut PamHandle;
+        let mut authtok_ptr: *const c_char = std::ptr::null();
+        let prompt_ptr = super::try_str_option_to_ptr(prompt)?;
+
+        match unsafe { ffi::pam_get_authtok(handle, PamItemType::AuthTok as c_int, &mut authtok_ptr, prompt_ptr) }.into() {
+            PamReturnCode::Success => {
+                assert!(
+                    !authtok_ptr.is_null(),
+                    "Got PAM_Success from pam_get_authtok but ptr is null!"
+                );
+                Ok(unsafe { CStr::from_ptr(authtok_ptr) }
+                    .to_str()
+                    .expect("Got invalid UTF8 string from pam_get_authtok"))
             }
             err => Err(err.into()),
         }
